@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Register - HMI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-gray-900 to-gray-800 text-white min-h-screen flex items-center justify-center">
+  <div class="bg-gray-900 p-10 rounded-xl shadow-lg w-full max-w-lg border border-gray-700">
+    <h2 class="text-3xl font-bold mb-6 text-center">Create Your <span class="text-indigo-500">HMI</span> Account</h2>
+    <form method="POST" action="/register" class="grid grid-cols-2 gap-4">
+      <input name="first_name" type="text" placeholder="First Name" class="col-span-1 p-3 bg-gray-800 border border-gray-700 rounded-lg" required />
+      <input name="last_name" type="text" placeholder="Last Name" class="col-span-1 p-3 bg-gray-800 border border-gray-700 rounded-lg" required />
+      <input name="username" type="text" placeholder="Username" class="col-span-2 p-3 bg-gray-800 border border-gray-700 rounded-lg" required />
+      <input name="password" type="password" placeholder="Password" class="col-span-2 p-3 bg-gray-800 border border-gray-700 rounded-lg" required />
+      <input name="confirm_password" type="password" placeholder="Confirm Password" class="col-span-2 p-3 bg-gray-800 border border-gray-700 rounded-lg" required />
+      <button type="submit" class="col-span-2 bg-indigo-600 hover:bg-indigo-700 p-3 rounded-lg font-semibold">Register</button>
+    </form>
+    <p class="text-sm text-center mt-4 text-gray-400">Already have an account?
+      <a href="/login.html" class="text-indigo-400 hover:underline">Login</a>
+    </p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HMI Chatbot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    #chatbot-panel {
+      transition: all 0.5s ease;
+      opacity: 0;
+      transform: translateY(20px);
+      display: none;
+      flex-direction: column;
+    }
+    #chatbot-panel.loaded {
+      opacity: 1;
+      transform: translateY(0);
+      display: flex;
+    }
+    #overlay {
+      backdrop-filter: blur(6px);
+      background-color: rgba(0, 0, 0, 0.6);
+    }
+    #chatWindow {
+      flex: 1;
+      overflow-y: auto;
+    }
+    #loader {
+      display: none;
+    }
+    video.chat-video {
+      max-height: 300px;
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 to-gray-800 text-white min-h-screen p-6 relative">
+
+  <!-- 👤 Profile Button (Top Right) -->
+  <div class="absolute top-4 right-6 z-50 mt-3">
+    <a href="/profile.html" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 text-white rounded-lg font-medium shadow-lg">
+      👤 View Profile
+    </a>
+  </div>
+
+  <!-- Input Section -->
+  <div class="max-w-4xl mx-auto bg-gray-900 rounded-xl p-6 border border-gray-700 space-y-6" id="input-section">
+    <h2 class="text-2xl font-semibold mb-4 text-center">Provide Your Inputs</h2>
+
+    <!-- Image Upload + Camera -->
+    <div>
+      <label class="block text-sm mb-2 font-medium">Upload or Capture Photo</label>
+      <input type="file" accept="image/*" capture="environment" id="imageInput" class="w-full mb-3 bg-gray-800 border border-gray-700 p-2 rounded">
+      <button id="cameraCaptureBtn" class="bg-blue-600 hover:bg-blue-700 w-full mb-3 p-2 rounded">📸 Open Camera</button>
+      <video id="cameraPreview" autoplay class="w-full rounded-lg mb-2 hidden"></video>
+      <button id="takePhotoBtn" class="bg-indigo-600 hover:bg-indigo-700 w-full p-2 rounded hidden">📷 Capture</button>
+      <img id="previewImage" class="rounded-lg max-h-72 mx-auto hidden" alt="Preview Image" />
+    </div>
+
+    <!-- PDF -->
+    <div>
+      <label class="block text-sm mb-2 font-medium">Upload PDF Document</label>
+      <input type="file" accept="application/pdf" id="pdfInput" class="w-full bg-gray-800 border border-gray-700 p-2 rounded">
+    </div>
+
+    <!-- Audio Upload -->
+    <div>
+      <label class="block text-sm mb-2 font-medium">Upload Voice</label>
+      <input type="file" accept="audio/*" id="voiceInput" class="w-full bg-gray-800 border border-gray-700 p-2 rounded">
+    </div>
+
+    <!-- Audio Record -->
+    <div>
+      <label class="block text-sm mb-2 font-medium">Or Record Voice</label>
+      <button id="recordBtn" class="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded w-full">🎙️ Start Recording</button>
+      <audio id="recordedAudio" controls class="w-full mt-2 hidden"></audio>
+    </div>
+
+    <!-- Enhancer -->
+    <div>
+      <label class="block text-sm mb-2 font-medium">Enhancer</label>
+      <select id="enhancerSelect" class="w-full bg-gray-800 border border-gray-700 p-2 rounded">
+        <option value="none">None</option>
+        <option value="gfpgan">GFPGAN</option>
+        <option value="restoreformer">RestoreFormer</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Start Chatbot Button -->
+  <div class="text-center mt-8">
+    <button id="startChatbotBtn" class="bg-green-600 hover:bg-green-700 px-6 py-3 text-white rounded-lg text-lg font-semibold">Start Chatbot</button>
+  </div>
+
+  <!-- Overlay and Chatbot Panel -->
+  <div id="overlay" class="fixed inset-0 z-40 hidden"></div>
+
+  <div id="chatbot-panel" class="fixed inset-0 z-50 m-auto p-6 max-w-3xl w-full h-[80vh] bg-gray-900 border border-gray-700 rounded-xl shadow-xl">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold text-center w-full">💬 Ask Your Document</h2>
+      <button id="closeChatbotBtn" class="text-red-400 hover:text-red-600 text-xl font-bold absolute right-6 top-6">✖</button>
+    </div>
+
+    <div id="chatWindow" class="border border-gray-700 rounded p-4 bg-gray-800 space-y-3 flex-1 overflow-y-auto">
+      <p id="placeholderMsg" class="text-gray-500 text-sm text-center italic">Start a conversation by asking a question...</p>
+    </div>
+
+    <div id="loader" class="text-center text-gray-400 italic my-2 hidden">⏳ Generating video...</div>
+
+    <div class="mt-2 flex">
+      <input id="chatInput" type="text" class="flex-1 p-2 rounded-l-lg bg-gray-700 border border-gray-600 placeholder-gray-400 text-white" placeholder="Type your question...">
+      <button id="sendBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 rounded-r-lg font-semibold">Send</button>
+    </div>
+  </div>
+
+<script>
+const imageInput = document.getElementById('imageInput');
+const previewImage = document.getElementById('previewImage');
+const pdfInput = document.getElementById('pdfInput');
+const voiceInput = document.getElementById('voiceInput');
+const recordBtn = document.getElementById('recordBtn');
+const recordedAudio = document.getElementById('recordedAudio');
+const chatbotPanel = document.getElementById('chatbot-panel');
+const overlay = document.getElementById('overlay');
+const cameraBtn = document.getElementById('cameraCaptureBtn');
+const takePhotoBtn = document.getElementById('takePhotoBtn');
+const cameraPreview = document.getElementById('cameraPreview');
+const loader = document.getElementById("loader");
+
+let mediaRecorder;
+let audioChunks = [];
+
+imageInput.addEventListener('change', () => {
+  const file = imageInput.files[0];
+  if (file) {
+    previewImage.src = URL.createObjectURL(file);
+    previewImage.classList.remove('hidden');
+  }
+});
+
+recordBtn.addEventListener('click', async () => {
+  if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(audioChunks, { type: 'audio/webm' });
+      const audioURL = URL.createObjectURL(blob);
+      recordedAudio.src = audioURL;
+      recordedAudio.classList.remove('hidden');
+    };
+    mediaRecorder.start();
+    recordBtn.textContent = '⏹️ Stop Recording';
+    setTimeout(() => {
+      mediaRecorder.stop();
+      recordBtn.textContent = '🎙️ Start Recording';
+    }, 5000);
+  }
+});
+
+let videoStream;
+cameraBtn.addEventListener('click', async () => {
+  videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+  cameraPreview.srcObject = videoStream;
+  cameraPreview.classList.remove('hidden');
+  takePhotoBtn.classList.remove('hidden');
+});
+
+takePhotoBtn.addEventListener('click', () => {
+  const canvas = document.createElement('canvas');
+  canvas.width = cameraPreview.videoWidth;
+  canvas.height = cameraPreview.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(blob => {
+    const file = new File([blob], "captured_photo.png", { type: "image/png" });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    imageInput.files = dataTransfer.files;
+    previewImage.src = URL.createObjectURL(file);
+    previewImage.classList.remove('hidden');
+  });
+  if (videoStream) {
+    videoStream.getTracks().forEach(track => track.stop());
+  }
+  cameraPreview.classList.add('hidden');
+  takePhotoBtn.classList.add('hidden');
+});
+
+document.getElementById("startChatbotBtn").addEventListener("click", () => {
+  chatbotPanel.classList.add("loaded");
+  overlay.classList.remove("hidden");
+});
+document.getElementById("closeChatbotBtn").addEventListener("click", () => {
+  chatbotPanel.classList.remove("loaded");
+  overlay.classList.add("hidden");
+});
+
+const sendButton = document.getElementById("sendBtn");
+const chatInput = document.getElementById("chatInput");
+const chatWindow = document.getElementById("chatWindow");
+
+sendButton.addEventListener("click", async () => {
+  const query = chatInput.value.trim();
+  if (!query) return;
+
+  const userMsg = document.createElement("p");
+  userMsg.textContent = "🧑‍💬 " + query;
+  userMsg.className = "text-right text-white mb-2";
+  chatWindow.appendChild(userMsg);
+  chatInput.value = "";
+  loader.style.display = "block";
+
+  const formData = new FormData();
+  formData.append("rag_query", query);
+  formData.append("source_image", imageInput.files[0]);
+  formData.append("rag_document", pdfInput.files[0]);
+
+  const enhancerValue = document.getElementById("enhancerSelect").value;
+  formData.append("enhancer", enhancerValue === "none" ? "" : enhancerValue);
+
+  if (voiceInput.files[0]) {
+    formData.append("reference_audio", voiceInput.files[0]);
+  } else if (recordedAudio.src) {
+    const blob = await fetch(recordedAudio.src).then(r => r.blob());
+    const file = new File([blob], "recorded_audio.webm", { type: "audio/webm" });
+    formData.append("reference_audio", file);
+  }
+
+  try {
+    const res = await fetch("/generate", { method: "POST", body: formData });
+    const { job_id } = await res.json();
+
+    const pollInterval = setInterval(async () => {
+      const statusRes = await fetch(`/status/${job_id}`);
+      const status = await statusRes.json();
+
+      if (status.status === "completed") {
+        clearInterval(pollInterval);
+        loader.style.display = "none";
+        const video = document.createElement("video");
+        video.src = status.url;
+        video.controls = true;
+        video.className = "mt-4 chat-video border border-gray-600 rounded";
+        chatWindow.appendChild(video);
+        chatWindow.scrollTop = chatWindow.scrollHeight;
+      } else if (status.status === "error") {
+        clearInterval(pollInterval);
+        loader.style.display = "none";
+        const errorMsg = document.createElement("p");
+        errorMsg.textContent = "❌ Video generation failed.";
+        errorMsg.className = "text-left text-red-400 mb-2";
+        chatWindow.appendChild(errorMsg);
+      }
+    }, 3000);
+  } catch (err) {
+    loader.style.display = "none";
+    const errorMsg = document.createElement("p");
+    errorMsg.textContent = "🤖 Error sending request.";
+    errorMsg.className = "text-left text-red-400 mb-2";
+    chatWindow.appendChild(errorMsg);
+  }
+});
+</script>
+</body>
+</html>
